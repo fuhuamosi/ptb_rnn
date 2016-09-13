@@ -12,7 +12,7 @@ flags = tf.flags
 logging = tf.logging
 
 flags.DEFINE_string(
-    "model", "small",
+    "model", "large",
     "A type of model. Possible options are: small, medium, large.")
 flags.DEFINE_string("data_path", '../data', "data_path")
 flags.DEFINE_bool("use_fp16", False,
@@ -38,12 +38,12 @@ class PTBModel:
                                        shape=(batch_size, num_steps))
 
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, forget_bias=0.0,
-                                                 state_is_tuple=False)
+                                                 state_is_tuple=True)
         if is_training and config.keep_prob < 1:
             lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell,
                                                       output_keep_prob=config.keep_prob)
         cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * config.num_layers,
-                                           state_is_tuple=False)
+                                           state_is_tuple=True)
         self._initial_state = cell.zero_state(batch_size, data_type())
 
         with tf.device('/cpu:0'):
@@ -204,7 +204,7 @@ def run_epoch(session, m, data, eval_op, verbose=False):
     start_time = time.time()
     costs = 0.0
     iters = 0.0
-    state = m.initial_state.eval()
+    state = session.run(fetches=m.initial_state)
     for step, (x, y) in enumerate(reader.ptb_iterator(data, m.batch_size,
                                                       m.num_steps)):
         cost, state, _ = session.run([m.cost, m.final_state, eval_op],
