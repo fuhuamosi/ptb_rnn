@@ -37,11 +37,13 @@ class PTBModel:
         self._targets = tf.placeholder(dtype=tf.int32,
                                        shape=(batch_size, num_steps))
 
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, forget_bias=0.0)
+        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size, forget_bias=0.0,
+                                                 state_is_tuple=False)
         if is_training and config.keep_prob < 1:
             lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell,
                                                       output_keep_prob=config.keep_prob)
-        cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * config.num_layers)
+        cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * config.num_layers,
+                                           state_is_tuple=False)
         self._initial_state = cell.zero_state(batch_size, data_type())
 
         with tf.device('/cpu:0'):
@@ -68,9 +70,11 @@ class PTBModel:
         softmax_b = tf.get_variable('softmax_b', (vocab_size,), dtype=data_type())
         logits = tf.matmul(output, softmax_w) + softmax_b
         loss = tf.nn.seq2seq.sequence_loss_by_example(logits=[logits],
-                                                      targets=[tf.reshape(self._targets, [-1])],
-                                                      weights=[tf.ones((batch_size * num_steps,),
-                                                                       dtype=data_type())])
+                                                      targets=[tf.reshape(self._targets,
+                                                                          [-1])],
+                                                      weights=[tf.ones(
+                                                          (batch_size * num_steps,),
+                                                          dtype=data_type())])
         self._cost = cost = tf.reduce_sum(loss) / batch_size
         self._final_state = state
 
@@ -82,7 +86,8 @@ class PTBModel:
         grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars), config.max_grad_norm)
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=self._lr)
         self._train_op = optimizer.apply_gradients(zip(grads, tvars))
-        self._new_lr = tf.placeholder(dtype=tf.float32, shape=[], name='new_learning_rate')
+        self._new_lr = tf.placeholder(dtype=tf.float32, shape=[],
+                                      name='new_learning_rate')
         self._lr_update = tf.assign(self._lr, self._new_lr)
 
     def assign_lr(self, session, lr_value):
